@@ -1,1 +1,9 @@
 rootProject.name = 'carbigdata'
+
+include 'contract-consumer'
+include 'contract-producer'
+include 'domain-consumer'
+include 'infrastructure-consumer'
+include 'infrastructure-producer'
+include 'domain-producer'
+include 'common'
