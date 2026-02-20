@@ -1,3 +1,94 @@
+server:
+  port: 8080
+  shutdown: graceful
+
 spring:
   application:
     name: carbigdata
+
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/carbigdata_db
+    username: admin
+    password: 123
+    pool:
+      initial-size: 5
+      max-size: 20
+      max-life-time: 30m
+      validation-query: SELECT 1
+
+  cloud:
+    function:
+      definition: enviarOcorrencia;processarOcorrencia
+
+    stream:
+      binders:
+        kafka-default:
+          type: kafka
+          environment:
+            spring:
+              cloud:
+                stream:
+                  kafka:
+                    binder:
+                      brokers: localhost:9092
+                      auto-create-topics: true
+                      configuration:
+                        key.serializer: org.apache.kafka.common.serialization.StringSerializer
+                        value.serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+                        acks: 1
+                        linger.ms: 20
+                        max.request.size: 1288490188
+                        fetch.max.bytes: 1288490188
+
+        kstream-binder:
+          type: kstream
+          environment:
+            spring:
+              cloud:
+                stream:
+                  kafka:
+                    streams:
+                      binder:
+                        brokers: localhost:9092
+                        configuration:
+                          default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+                          default.value.serde: org.springframework.kafka.support.serializer.JsonSerde
+                          spring.json.trusted.packages: "*"
+                          spring.json.use.type.headers: false
+                          spring.json.value.default.type: com.carbigdata.domain.dto.OcorrenciaEventDto
+
+                          default.deserialization.exception.handler: org.apache.kafka.streams.errors.LogAndContinueExceptionHandler
+                          commit.interval.ms: 1000
+                          application.id: carbigdata-streams-app
+                          retries: 10
+                          retry.backoff.ms: 1000
+                          max.request.size: 1288490188
+                          fetch.max.bytes: 1288490188
+
+      bindings:
+        enviarOcorrencia-out-0:
+          binder: kafka-default
+          destination: ocorrencias-topic
+          content-type: application/json
+          producer:
+            configuration:
+              max.request.size: 1288490188
+
+        processarOcorrencia-in-0:
+          binder: kstream-binder
+          destination: ocorrencias-topic
+          group: carbigdata-consumer-group-v1 
+          content-type: application/json
+          consumer:
+            max-attempts: 3 
+            back-off-initial-interval: 1000 
+            back-off-max-interval: 10000    
+            back-off-multiplier: 2.0        
+
+carbigdata:
+  storage:
+    endpoint: http://localhost:9000
+    access-key: minio_admin
+    secret-key: minio_password
+    bucket-name: ocorrencias-bucket
+    region: us-east-1
