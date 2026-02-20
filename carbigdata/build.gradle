@@ -29,7 +29,6 @@ repositories {
 }
 
 dependencies {
-    implementation project(':common')
     implementation project(':contract-consumer')
     implementation project(':contract-producer')
     implementation project(':domain-consumer')
@@ -72,6 +71,7 @@ allprojects {
         runtimeOnly 'org.postgresql:postgresql'
 
         implementation 'org.springframework.cloud:spring-cloud-stream'
+        implementation 'org.springframework.cloud:spring-cloud-stream-binder-kafka'
         implementation 'org.springframework.cloud:spring-cloud-stream-binder-kafka-streams'
 
         implementation 'software.amazon.awssdk:s3:2.21.46'
@@ -82,6 +82,15 @@ allprojects {
         testImplementation 'io.projectreactor:reactor-test'
         testImplementation 'org.springframework.cloud:spring-cloud-stream-test-binder'
         testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+        testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+        testImplementation 'org.testcontainers:junit-jupiter'
+        testImplementation 'org.testcontainers:kafka'
+        testImplementation 'org.testcontainers:postgresql'
+        testImplementation 'org.testcontainers:r2dbc'
+
+        testImplementation 'io.r2dbc:r2dbc-h2'
+        testImplementation 'com.h2database:h2'
     }
 
     tasks.named('test') {
