@@ -1,45 +1,151 @@
-**Edit a file, create a new file, and clone from Bitbucket in under 2 minutes**
+# Processamento de Ocorrências em Tempo Real
 
-When you're done, you can delete the content in this README and update the file with details for others getting started with your repository.
+Este projeto é uma aplicação de **Big Data e Processamento de Eventos** desenvolvida com **Spring Boot 3.4** e **Project Reactor (WebFlux)**, seguindo os princípios da **Arquitetura Hexagonal (Ports and Adapters)**.
 
-*We recommend that you open this README in another tab as you perform the tasks below. You can [watch our video](https://youtu.be/0ocf7u76WSo) for a full demo of all the steps in this tutorial. Open the video in a new tab to avoid leaving Bitbucket.*
-
----
-
-## Edit a file
-
-You’ll start by editing this README file to learn how to edit a file in Bitbucket.
-
-1. Click **Source** on the left side.
-2. Click the README.md link from the list of files.
-3. Click the **Edit** button.
-4. Delete the following text: *Delete this line to make a change to the README from Bitbucket.*
-5. After making your change, click **Commit** and then **Commit** again in the dialog. The commit page will open and you’ll see the change you just made.
-6. Go back to the **Source** page.
+O sistema é responsável por ingerir ocorrências (com geolocalização e fotos), processá-las de forma assíncrona via **Kafka** e **Kafka Streams**, armazenar as imagens em um Object Storage (**MinIO/S3**) e persistir os dados estruturados em um banco de dados relacional (**PostgreSQL**) de forma totalmente não-bloqueante (**R2DBC**).
 
 ---
 
-## Create a file
+## 🚀 Tecnologias Utilizadas
 
-Next, you’ll add a new file to this repository.
-
-1. Click the **New file** button at the top of the **Source** page.
-2. Give the file a filename of **contributors.txt**.
-3. Enter your name in the empty file space.
-4. Click **Commit** and then **Commit** again in the dialog.
-5. Go back to the **Source** page.
-
-Before you move on, go ahead and explore the repository. You've already seen the **Source** page, but check out the **Commits**, **Branches**, and **Settings** pages.
+*   **Java 21**
+*   **Spring Boot 3.4** (WebFlux, Validation, Actuator)
+*   **Spring Cloud Stream** (Kafka Binder & Kafka Streams Binder)
+*   **Apache Kafka** (Mensageria e Stream Processing)
+*   **PostgreSQL** (Banco de Dados Relacional)
+*   **Spring Data R2DBC** (Persistência Reativa)
+*   **MinIO** (Object Storage compatível com S3)
+*   **AWS SDK v2** (Cliente S3 Assíncrono)
+*   **MapStruct** (Mapeamento de Objetos)
+*   **Docker & Docker Compose** (Infraestrutura)
+*   **Testcontainers** (Testes de Integração)
+*   **Gradle** (Gerenciador de Dependência)
 
 ---
 
-## Clone a repository
+## 🏛️ Arquitetura
 
-Use these steps to clone from SourceTree, our client for using the repository command-line free. Cloning allows you to work on your files locally. If you don't yet have SourceTree, [download and install first](https://www.sourcetreeapp.com/). If you prefer to clone from the command line, see [Clone a repository](https://confluence.atlassian.com/x/4whODQ).
+O projeto segue a **Arquitetura Hexagonal**, dividido em módulos para garantir desacoplamento:
 
-1. You’ll see the clone button under the **Source** heading. Click that button.
-2. Now click **Check out in SourceTree**. You may need to create a SourceTree account or log in.
-3. When you see the **Clone New** dialog in SourceTree, update the destination path and name if you’d like to and then click **Clone**.
-4. Open the directory you just created to see your repository’s files.
+*   **contract-producer**: Controladores REST e DTOs de entrada.
+*   **domain-producer**: Regras de negócio e Portas de saída da ingestão.
+*   **infrastructure-producer**: Adaptadores de saída (Kafka Producer).
+*   **contract-consumer**: Listeners do Kafka (Kafka Streams).
+*   **domain-consumer**: Regras de negócio do processamento.
+*   **infrastructure-consumer**: Adaptadores de infraestrutura (R2DBC, S3/MinIO).
 
-Now that you're more familiar with your Bitbucket repository, go ahead and add a new file locally. You can [push your change back to Bitbucket with SourceTree](https://confluence.atlassian.com/x/iqyBMg), or you can [add, commit,](https://confluence.atlassian.com/x/8QhODQ) and [push from the command line](https://confluence.atlassian.com/x/NQ0zDQ).
+### Fluxo de Dados
+
+1.  **Ingestão (REST):** O cliente envia um POST com dados da ocorrência e imagem em Base64.
+2.  **Producer (Kafka):** A aplicação valida os dados e publica uma mensagem no tópico `ocorrencias-topic`.
+3.  **Processamento (Kafka Streams):** O Consumer lê a mensagem do tópico.
+4.  **Armazenamento (S3):** A imagem é decodificada e enviada para o bucket `ocorrencias-bucket` no MinIO.
+5.  **Persistência (R2DBC):**
+    *   Verifica/Cria o Cliente.
+    *   Salva o Endereço.
+    *   Salva a Ocorrência vinculada.
+    *   Salva a referência da Foto.
+
+---
+
+## 🛠️ Como Rodar o Projeto
+
+### Pré-requisitos
+
+*   Java 21+
+*   Docker e Docker Compose
+
+### 1. Subir a Infraestrutura (Docker)
+
+Na raiz do projeto, execute:
+
+```bash
+docker-compose up -d
+```
+
+Isso irá subir:
+*   **PostgreSQL** (Porta 5432)
+*   **Kafka** (Porta 9092 - Externa / 29092 - Interna)
+*   **MinIO** (Porta 9000 - API / 9001 - Console)
+*   **Kafka UI** (Porta 8090 - http://localhost:8090)
+*   **PgAdmin** (Porta 5050 - http://localhost:5050)
+
+O script de inicialização (`createbuckets`) criará automaticamente o bucket `ocorrencias-bucket` no MinIO.
+
+### 2. Rodar a Aplicação
+
+Com a infraestrutura de pé, execute:
+
+```bash
+./gradlew bootRun
+```
+
+A aplicação iniciará na porta **8080**.
+
+---
+
+## 🧪 Como Testar
+
+### Endpoint de Ingestão
+
+**POST** `/v1/ocorrencias`
+
+**Body (JSON):**
+
+```json
+{
+  "codCliente": 1050,
+  "cpf": "12345678909",
+  "logradouro": "Av. Paulista",
+  "bairro": "Bela Vista",
+  "cep": "01310-100",
+  "cidade": "São Paulo",
+  "estado": "SP",
+  "latitude": -23.561414,
+  "longitude": -46.6558819,
+  "imagemBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+}
+```
+
+**Resposta Esperada:** `201 Created`
+
+### Verificando o Processamento
+
+1.  **Kafka UI:** Acesse http://localhost:8090 e verifique se a mensagem chegou no tópico `ocorrencias-topic`.
+2.  **MinIO:** Acesse http://localhost:9001 (User: `minio_admin`, Pass: `minio_password`) e veja se a imagem foi salva no bucket.
+3.  **Banco de Dados:** Verifique as tabelas `ocorrencia`, `endereco`, `cliente` e `foto_ocorrencia` no PostgreSQL.
+
+---
+
+## ✅ Testes Automatizados
+
+O projeto possui uma suíte robusta de testes:
+
+*   **Testes de Integração:** Usam **Testcontainers** para subir Kafka e Postgres reais e testar o fluxo ponta a ponta.
+*   **Testes Unitários:** Usam **Mockito** e **H2 Database** para testar a lógica de negócio e adaptadores isoladamente.
+
+Para rodar todos os testes:
+
+```bash
+./gradlew test
+```
+
+---
+
+## 📝 Estrutura do Banco de Dados
+
+```sql
+CREATE TABLE cliente (...);
+CREATE TABLE endereco (...);
+CREATE TABLE ocorrencia (
+    ...
+    FOREIGN KEY (cod_cliente) REFERENCES cliente(cod_cliente),
+    FOREIGN KEY (cod_endereco) REFERENCES endereco(cod_endereco)
+);
+CREATE TABLE foto_ocorrencia (...);
+```
+
+---
+
+
+**Desenvolvido por jose ismael palliano evaldt**
